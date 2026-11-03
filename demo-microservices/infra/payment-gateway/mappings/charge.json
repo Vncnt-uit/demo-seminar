@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/charge"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "approved": true,
+      "reference": "mock-charge-001"
+    }
+  }
+}

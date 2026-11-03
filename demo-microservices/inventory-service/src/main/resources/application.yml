@@ -1,0 +1,29 @@
+# =============================================================================
+# [UML: Deployment Diagram] inventory-service container
+#   Database Node : inventory-db (owned by this service)
+#   Broker        : rabbitmq   (consumes order.created, payment.failed)
+#
+# [ARCH: DATABASE-PER-SERVICE] no datasource for orders/customers/payments.
+# =============================================================================
+server:
+  port: 8082
+
+spring:
+  application:
+    name: inventory-service
+
+  datasource:
+    url: jdbc:postgresql://${INVENTORY_DB_HOST:localhost}:${INVENTORY_DB_PORT:5432}/${INVENTORY_DB_NAME:inventory_db}
+    username: ${INVENTORY_DB_USER:shop}
+    password: ${INVENTORY_DB_PASSWORD:shop}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:shop}
+    password: ${RABBITMQ_PASSWORD:shop}

@@ -1,0 +1,34 @@
+# =============================================================================
+# [UML: Deployment Diagram] payment-service container
+#   Database Node   : payment-db   (owned by this service)
+#   Broker          : rabbitmq     (consumes stock.reserved)
+#   External System : payment-gateway-mock (third-party payment provider)
+#
+# [ARCH: DATABASE-PER-SERVICE] only the payments datasource.
+# =============================================================================
+server:
+  port: 8083
+
+spring:
+  application:
+    name: payment-service
+
+  datasource:
+    url: jdbc:postgresql://${PAYMENT_DB_HOST:localhost}:${PAYMENT_DB_PORT:5432}/${PAYMENT_DB_NAME:payment_db}
+    username: ${PAYMENT_DB_USER:shop}
+    password: ${PAYMENT_DB_PASSWORD:shop}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:shop}
+    password: ${RABBITMQ_PASSWORD:shop}
+
+payments:
+  gateway:
+    url: ${PAYMENT_GATEWAY_URL:http://localhost:9090}

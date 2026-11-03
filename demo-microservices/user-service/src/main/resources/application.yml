@@ -1,0 +1,21 @@
+# =============================================================================
+# [UML: Deployment Diagram] user-service container
+#   Database Node : users-db (owned by this service)
+# [ARCH: DATABASE-PER-SERVICE] no order/payment/inventory datasource.
+# =============================================================================
+server:
+  port: 8085
+
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: jdbc:postgresql://${USER_DB_HOST:localhost}:${USER_DB_PORT:5432}/${USER_DB_NAME:users_db}
+    username: ${USER_DB_USER:shop}
+    password: ${USER_DB_PASSWORD:shop}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false

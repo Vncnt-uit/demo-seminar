@@ -1,0 +1,66 @@
+# =============================================================================
+# [UML: DEPLOYMENT DIAGRAM - MONOLITH]  ->  docker-compose.yml
+# Dung de chieu CANH demo-microservices/docker-compose.yml.
+#
+#   UML element            ->  what you see below
+#   ---------------------------------------------------------------------------
+#   Node                   ->  the Docker host
+#   Execution Environment  ->  Docker Engine
+#   Artifact               ->  image seminar/ecommerce-monolith:mock
+#                              (the single .jar produced by pom.xml)
+#   Deployment             ->  ONE application container
+#   Database Node          ->  ONE "Central Database" (monolith-db)
+#   Communication Path     ->  ONE network (app-net)
+#
+# [ARCH: MONOLITH] 2 containers total. The app holds controller + service +
+# repository + model + config in one process and owns the only database.
+# With no service boundary there is nothing to isolate at the network level.
+# =============================================================================
+
+name: demo-monolith
+
+services:
+
+  # [UML: Deployment Diagram] the single deployable artifact
+  # [UML: Package Diagram] contains controller / service / repository / model / config
+  monolith:
+    image: seminar/ecommerce-monolith:mock
+    ports:
+      - "8080:8080"
+    environment:
+      # [UML: Deployment Diagram] ONE datasource -> ONE central database
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://monolith-db:5432/ecommerce"
+      SPRING_DATASOURCE_USERNAME: shop
+      SPRING_DATASOURCE_PASSWORD: shop
+    depends_on:
+      monolith-db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  # [UML: Deployment Diagram] Database Node = Central Database
+  # [UML: Class Diagram] ALL tables (customers, products, orders, order_items,
+  # payments) live here, with real foreign keys between them.
+  monolith-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - monolith-db-data:/var/lib/postgresql/data
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d ecommerce"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app-net
+
+# [UML: Deployment Diagram] ONE communication path: app <-> central DB
+networks:
+  app-net:
+
+volumes:
+  monolith-db-data:

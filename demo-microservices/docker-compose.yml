@@ -1,0 +1,345 @@
+# =============================================================================
+# [UML: DEPLOYMENT DIAGRAM]  ->  docker-compose.yml
+# (matches "5.2 Deployment Diagram minh hoa" + the Kubernetes diagram)
+#
+#   UML element            ->  what you see below
+#   ---------------------------------------------------------------------------
+#   Node                   ->  the Docker host running this file
+#   Execution Environment  ->  Docker Engine (one container per Artifact)
+#   Artifact               ->  image seminar/<service>:mock
+#                              (the .jar produced by each service's pom.xml)
+#   Deployment             ->  one `services:` entry per Artifact
+#   Communication Path     ->  compose networks (edge / broker / *-db / external)
+#   Database Node          ->  order-db, inventory-db, payment-db,
+#                              notification-db, users-db
+#   External System        ->  payment-gateway-mock, mailhog (SMTP)
+#
+# [ARCH: DATABASE-PER-SERVICE] every database is on its OWN network and is
+# attached ONLY to its owning service. No service can reach another service's
+# database, which is the runtime enforcement of the dashed lines on the
+# Component Diagram.
+#
+# NOTE: the images are illustrative ("mock"). Build each module with Maven and
+# tag the image if you want to actually `docker compose up`; the value of this
+# file for the seminar is the topology, not a runnable demo.
+# =============================================================================
+
+name: demo-microservices
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # [UML: Component Diagram] «API Gateway» - single entry point, owns no data
+  # [UML: Deployment Diagram] Web/Mobile Client -> API Gateway
+  # Only this container publishes a host port: everything else is internal.
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    image: seminar/api-gateway:mock
+    ports:
+      - "8080:8080"
+    environment:
+      ORDER_SERVICE_URL: "http://order-service:8081"
+      USER_SERVICE_URL: "http://user-service:8085"
+    depends_on:
+      order-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+    networks:
+      - edge-net
+
+  # ---------------------------------------------------------------------------
+  # [UML: Component Diagram] «Order Service»  -> owns Orders DB
+  # [UML: Sequence Diagram] lifelines Order Service + Order DB
+  # [UML: Class Diagram] boundary OrderService (Order, OrderItem)
+  # ---------------------------------------------------------------------------
+  order-service:
+    image: seminar/order-service:mock
+    environment:
+      ORDER_DB_HOST: order-db
+      ORDER_DB_PORT: "5432"
+      ORDER_DB_NAME: order_db
+      ORDER_DB_USER: shop
+      ORDER_DB_PASSWORD: shop
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: shop
+      RABBITMQ_PASSWORD: shop
+      INVENTORY_SERVICE_URL: "http://inventory-service:8082"   # ProductId via API
+      USER_SERVICE_URL: "http://user-service:8085"             # customerId -> name
+    depends_on:
+      order-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - edge-net            # reachable from the API Gateway
+      - broker-net          # OrderCreated / PaymentSucceeded ...
+      - order-db-net        # its OWN database only
+      - order-inventory-net # the REST/gRPC arrow to Inventory Service
+
+  # ---------------------------------------------------------------------------
+  # [UML: Component Diagram] «Inventory Service» -> owns Inventory DB
+  # [UML: Class Diagram] boundary InventoryService
+  #                      (InventoryItem, StockReservation)
+  # ---------------------------------------------------------------------------
+  inventory-service:
+    image: seminar/inventory-service:mock
+    environment:
+      INVENTORY_DB_HOST: inventory-db
+      INVENTORY_DB_PORT: "5432"
+      INVENTORY_DB_NAME: inventory_db
+      INVENTORY_DB_USER: shop
+      INVENTORY_DB_PASSWORD: shop
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: shop
+      RABBITMQ_PASSWORD: shop
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - broker-net          # consumes order.created / payment.failed
+      - inventory-db-net    # its OWN database only
+      - order-inventory-net # serves GET /api/inventory/{productId}
+
+  # ---------------------------------------------------------------------------
+  # [UML: Component Diagram] «Payment Service» -> owns Payments DB
+  # [UML: Class Diagram] boundary PaymentService (Payment)
+  # ---------------------------------------------------------------------------
+  payment-service:
+    image: seminar/payment-service:mock
+    environment:
+      PAYMENT_DB_HOST: payment-db
+      PAYMENT_DB_PORT: "5432"
+      PAYMENT_DB_NAME: payment_db
+      PAYMENT_DB_USER: shop
+      PAYMENT_DB_PASSWORD: shop
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: shop
+      RABBITMQ_PASSWORD: shop
+      PAYMENT_GATEWAY_URL: "http://payment-gateway-mock:9090"  # External System
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - broker-net
+      - payment-db-net
+      - external-net
+
+  # ---------------------------------------------------------------------------
+  # [UML: Component Diagram] «Notification Service» -> owns Notification logs
+  # It hangs off the Message Queue (no gateway route, no public port).
+  # ---------------------------------------------------------------------------
+  notification-service:
+    image: seminar/notification-service:mock
+    environment:
+      NOTIFICATION_DB_HOST: notification-db
+      NOTIFICATION_DB_PORT: "5432"
+      NOTIFICATION_DB_NAME: notification_db
+      NOTIFICATION_DB_USER: shop
+      NOTIFICATION_DB_PASSWORD: shop
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: shop
+      RABBITMQ_PASSWORD: shop
+      SMTP_HOST: mailhog                                      # External System
+      SMTP_PORT: "1025"
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - broker-net
+      - notification-db-net
+      - external-net
+
+  # ---------------------------------------------------------------------------
+  # [UML: Component Diagram] «User Service» -> owns Users DB
+  # (present in the Component Diagram, missing from the text table in 2.1)
+  # ---------------------------------------------------------------------------
+  user-service:
+    image: seminar/user-service:mock
+    environment:
+      USER_DB_HOST: users-db
+      USER_DB_PORT: "5432"
+      USER_DB_NAME: users_db
+      USER_DB_USER: shop
+      USER_DB_PASSWORD: shop
+    depends_on:
+      users-db:
+        condition: service_healthy
+    networks:
+      - edge-net            # gateway routes /api/users/**
+      - user-db-net         # its OWN database only
+
+  # ===========================================================================
+  # [UML: Deployment Diagram] "Database per Service" boundary
+  # One container = one UML «Database Node». Each is attached to exactly one
+  # service network, so a cross-service JOIN is impossible at the network level.
+  # (The seminar text notes this can also be 5 logical DBs on one server; the
+  #  diagram shows separate nodes, so the mock mirrors the diagram.)
+  # ===========================================================================
+  order-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+      # [UML: Class Diagram] Order DB schema: order + order_item, NO cross-service FK
+      - ./order-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d order_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - order-db-net
+
+  inventory-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+      # [UML: Class Diagram] Inventory DB: inventory_item + stock_reservation
+      - ./inventory-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d inventory_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - inventory-db-net
+
+  payment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+      # [UML: Class Diagram] Payments DB: payment (order_id UNIQUE, no FK)
+      - ./payment-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d payment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - payment-db-net
+
+  notification-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+      # [UML: Class Diagram] Notification DB: notification_log
+      - ./notification-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d notification_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - notification-db-net
+
+  users-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - users-db-data:/var/lib/postgresql/data
+      # [UML: Class Diagram] Users DB: customers (the monolith's CustomerEntity)
+      - ./user-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d users_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - user-db-net
+
+  # ===========================================================================
+  # [UML: Component Diagram] «Message Queue» / "Async Flow"
+  # [UML: Sequence Diagram] the Message Broker lifeline
+  # Routing keys: order.created, stock.reserved, stock.rejected,
+  #               payment.succeeded, payment.failed  (see contracts/events.md)
+  # ===========================================================================
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "15672:15672"   # management UI, for the live demo only
+    environment:
+      RABBITMQ_DEFAULT_USER: shop
+      RABBITMQ_DEFAULT_PASS: shop
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - broker-net
+
+  # ===========================================================================
+  # [UML: Deployment Diagram] External System = Payment Gateway
+  # WireMock stands in for VNPay / MoMo / Stripe. Stub: infra/payment-gateway/
+  # ===========================================================================
+  payment-gateway-mock:
+    image: wiremock/wiremock:3.3.1
+    command: ["--port", "9090", "--verbose"]
+    volumes:
+      - ./infra/payment-gateway:/home/wiremock
+    networks:
+      - external-net
+
+  # ===========================================================================
+  # [UML: Deployment Diagram] External System = SMTP / Email provider
+  # MailHog UI: http://localhost:8025
+  # ===========================================================================
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "8025:8025"
+    networks:
+      - external-net
+
+# =============================================================================
+# [UML: Deployment Diagram] Communication Paths
+# A network is a communication path. Sharing a network == being allowed to talk.
+# =============================================================================
+networks:
+  edge-net:          # Client -> Gateway -> Order/User (public HTTP only)
+  broker-net:        # every service <-> Message Queue (events)
+  order-db-net:      # order-service <-> order-db
+  inventory-db-net:  # inventory-service <-> inventory-db
+  payment-db-net:    # payment-service <-> payment-db
+  notification-db-net:
+  user-db-net:
+  order-inventory-net: # the "REST / gRPC" arrow of the Deployment Diagram
+  external-net:        # payment gateway + SMTP
+
+volumes:
+  order-db-data:
+  inventory-db-data:
+  payment-db-data:
+  notification-db-data:
+  users-db-data:

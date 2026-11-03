@@ -1,0 +1,39 @@
+# =============================================================================
+# [UML: Deployment Diagram] order-service container
+#   Database Node  : order-db        (OWNED exclusively by this service)
+#   Broker path    : rabbitmq        (Communication Path for events)
+#   HTTP paths     : inventory-service ("ProductId via API"), user-service
+#
+# [ARCH: DATABASE-PER-SERVICE] only ONE datasource. There is no customers or
+# payments datasource here -- those belong to other services.
+# =============================================================================
+server:
+  port: 8081
+
+spring:
+  application:
+    name: order-service
+
+  datasource:
+    url: jdbc:postgresql://${ORDER_DB_HOST:localhost}:${ORDER_DB_PORT:5432}/${ORDER_DB_NAME:order_db}
+    username: ${ORDER_DB_USER:shop}
+    password: ${ORDER_DB_PASSWORD:shop}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:shop}
+    password: ${RABBITMQ_PASSWORD:shop}
+
+# [UML: Component Diagram] Required Interfaces, resolved by environment,
+# NOT by compile-time classpath (that is the whole point of a distributed system).
+services:
+  inventory:
+    url: ${INVENTORY_SERVICE_URL:http://localhost:8082}
+  user:
+    url: ${USER_SERVICE_URL:http://localhost:8085}

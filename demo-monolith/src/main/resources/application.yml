@@ -1,0 +1,36 @@
+# =============================================================================
+# [UML: Deployment Diagram - MONOLITH]
+#   Node / Execution Environment : ONE JVM (this Spring Boot app)
+#   Database Node                : ONE "Central Database"
+#   Communication Path           : JDBC, inside the process boundary
+#
+# [ARCH: MONOLITH] Every package (controller/service/repository) uses this same
+# Datasource. That single connection pool is what makes one ACID transaction
+# over orders + order_items + products + payments possible.
+# =============================================================================
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ecommerce-monolith
+
+  datasource:
+    # The CENTRAL database. Compare with demo-microservices: 5 URLs, one per service.
+    url: jdbc:postgresql://localhost:5432/ecommerce
+    username: shop
+    password: shop
+    hikari:
+      maximum-pool-size: 20
+
+  jpa:
+    hibernate:
+      ddl-auto: validate       # schema.sql below is the source of truth
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+logging:
+  level:
+    com.project.ecommerce: DEBUG

@@ -1,0 +1,38 @@
+# =============================================================================
+# [UML: Deployment Diagram] notification-service container
+#   Database Node   : notification-db (owned by this service)
+#   Broker          : rabbitmq (consumes payment.succeeded)
+#   External System : smtp / mailhog
+#
+# [ARCH: DATABASE-PER-SERVICE] one datasource, no order/customer tables.
+# =============================================================================
+server:
+  port: 8084
+
+spring:
+  application:
+    name: notification-service
+
+  datasource:
+    url: jdbc:postgresql://${NOTIFICATION_DB_HOST:localhost}:${NOTIFICATION_DB_PORT:5432}/${NOTIFICATION_DB_NAME:notification_db}
+    username: ${NOTIFICATION_DB_USER:shop}
+    password: ${NOTIFICATION_DB_PASSWORD:shop}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:shop}
+    password: ${RABBITMQ_PASSWORD:shop}
+
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+
+notification:
+  from: no-reply@shop.local
+  demo-recipient: customer@example.com

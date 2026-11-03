@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/refund"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "refunded": true,
+      "reference": "mock-refund-001"
+    }
+  }
+}

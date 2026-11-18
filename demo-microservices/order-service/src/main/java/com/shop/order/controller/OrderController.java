@@ -40,4 +40,10 @@ public class OrderController {
     public ResponseEntity<OrderResponseDTO> get(@PathVariable UUID orderId) {
         return ResponseEntity.ok(orderService.getOrder(orderId));
     }
+
+    // Clean DDD Command: Cancel order cleanly within Bounded Context
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<OrderResponseDTO> cancel(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(orderService.cancelOrder(orderId, "Customer requested cancellation"));
+    }
 }

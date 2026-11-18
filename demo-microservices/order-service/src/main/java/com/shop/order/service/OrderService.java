@@ -108,4 +108,15 @@ public class OrderService {
         String customerName = userClient.getCustomerName(order.getCustomerId());
         return new OrderResponseDTO(order.getId(), order.getStatus(), order.getTotalAmount(), customerName);
     }
+
+    // [UML: Sequence Diagram - Saga Compensation] Clean Order Cancellation Flow
+    @Transactional
+    public OrderResponseDTO cancelOrder(UUID orderId, String reason) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        order.setStatus("CANCELLED");
+        orderRepository.save(order);
+        String customerName = userClient.getCustomerName(order.getCustomerId());
+        return new OrderResponseDTO(order.getId(), order.getStatus(), order.getTotalAmount(), customerName);
+    }
 }

@@ -1,5 +1,8 @@
 package com.shop.order.service;
 
+import com.shop.payment.model.PaymentEntity; // [INJECTED_VIOLATION]
+import com.shop.payment.repository.PaymentRepository; // [INJECTED_VIOLATION]
+
 import com.shop.order.client.InventoryClient;
 import com.shop.order.client.UserClient;
 import com.shop.order.event.OrderCreatedEvent;

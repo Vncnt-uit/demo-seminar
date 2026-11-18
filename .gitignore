@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.docx
+target/
+.idea/
+*.iml
+.vscode/

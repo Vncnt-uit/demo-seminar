@@ -158,47 +158,29 @@ flowchart TD
     %% Architectural Dependency Graph (Reverse-Engineered from Source Code)
     subgraph Ingress [Client & Gateway]
         Client["📱 Web / Mobile Client"]
+        Gateway["🚪 API Gateway (Spring Cloud)"]
+        Client --> Gateway
     end
     Broker[["🐰 RabbitMQ Message Broker (Async Events)"]]
     subgraph BoundedContexts [DDD Bounded Contexts]
-        monolith_core["<b>Monolith Core</b><br/><small>Entities: None</small>"]
-        monolith_controller["<b>Monolith Controller</b><br/><small>Entities: None</small>"]
-        monolith_repository["<b>Monolith Repository</b><br/><small>Entities: None</small>"]
-        monolith_service["<b>Monolith Service</b><br/><small>Entities: None</small>"]
-        monolith_model["<b>Monolith Model</b><br/><small>Entities: CustomerEntity, OrderEntity</small>"]
+        user_service["<b>User Context</b><br/><small>Entities: CustomerEntity</small>"]
+        payment_service["<b>Payment Context</b><br/><small>Entities: Payment</small>"]
+        order_service["<b>Order Context</b><br/><small>Entities: Order, OrderItem</small>"]
+        notification_service["<b>Notification Context</b><br/><small>Entities: NotificationLogEntity</small>"]
+        inventory_service["<b>Inventory Context</b><br/><small>Entities: InventoryItem, StockReservation</small>"]
     end
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderRequestDTO" ==> monolith_core
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderRequestDTO" ==> monolith_model
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderResponseDTO" ==> monolith_core
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderResponseDTO" ==> monolith_model
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.service.OrderService" ==> monolith_core
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.service.OrderService" ==> monolith_service
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.service.PaymentService" ==> monolith_core
-    monolith_controller == "❌ DIRECT IMPORT: import com.project.ecommerce.service.PaymentService" ==> monolith_service
-    monolith_repository == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.CustomerEntity" ==> monolith_core
-    monolith_repository == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.OrderEntity" ==> monolith_core
-    monolith_repository == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.PaymentEntity" ==> monolith_core
-    monolith_repository == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.ProductEntity" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderItemRequest" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderItemRequest" ==> monolith_model
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.ProductEntity" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.ProductRepository" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.ProductRepository" ==> monolith_repository
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.OrderEntity" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderRequestDTO" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderRequestDTO" ==> monolith_model
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderResponseDTO" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.OrderResponseDTO" ==> monolith_model
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.*" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.CustomerRepository" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.CustomerRepository" ==> monolith_repository
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.OrderRepository" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.OrderRepository" ==> monolith_repository
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.PaymentInfo" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.dto.PaymentInfo" ==> monolith_model
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.model.entity.PaymentEntity" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.PaymentRepository" ==> monolith_core
-    monolith_service == "❌ DIRECT IMPORT: import com.project.ecommerce.repository.PaymentRepository" ==> monolith_repository
+    Broker -->|Consume Event| payment_service
+    order_service -. "HTTP REST" .-> inventory_service
+    order_service -. "HTTP REST" .-> user_service
+    order_service -->|Publish Event| Broker
+    Broker -->|Consume Event| order_service
+    Broker -->|Consume Event| notification_service
+    Broker -->|Consume Event| inventory_service
+    Gateway -. "HTTP REST" .-> user_service
+    Gateway -. "HTTP REST" .-> payment_service
+    Gateway -. "HTTP REST" .-> order_service
+    Gateway -. "HTTP REST" .-> notification_service
+    Gateway -. "HTTP REST" .-> inventory_service
 
     %% Styling
     classDef clean fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;

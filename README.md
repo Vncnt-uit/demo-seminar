@@ -7,6 +7,10 @@ Bộ mock code để chiếu cạnh nhau khi seminar. Code **không cần chạy
 docs/                 # 2 file .docx gốc (phần 2 và phần 3) + hình UML
 demo-monolith/        # M1–M4 (+ M5/M6 suy ra): Package / Class / Sequence
 demo-microservices/   # S1–S6: Component / Class / Sequence / Deployment
+arch-guard/           # AI Architecture Sentinel & CI/CD Bounded Context Checker
+.github/workflows/    # CI/CD Pipeline (GitHub Actions)
+run-demo.ps1          # Menu tương tác chạy demo seminar (PowerShell)
+SEMINAR_GUIDE.md      # Kịch bản thuyết trình & bộ câu hỏi chất vấn
 MAPPING.md            # bảng nối hình ↔ file + bảng khác biệt 2 kiến trúc
 ```
 
@@ -23,6 +27,7 @@ MAPPING.md            # bảng nối hình ↔ file + bảng khác biệt 2 ki�
 | Deployment Diagram | `demo-microservices/docker-compose.yml` (14 container, 9 network) |
 | Deployment — đối chiếu | `demo-monolith/docker-compose.yml` (2 container, 1 network) |
 | Bảng đối chiếu | `MAPPING.md` |
+| **AI CI/CD Architecture Sentinel** | Chạy `.\run-demo.ps1` hoặc xem `SEMINAR_GUIDE.md` |
 
 ## Câu chốt
 

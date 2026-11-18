@@ -1,0 +1,54 @@
+name: "🏛️ AI Architecture Sentinel (Bounded Context Linter)"
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  architecture-governance:
+    name: "Analyze Architecture & Enforce Bounded Contexts"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python Environment"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "Run AI Architecture Sentinel"
+        id: arch_guard
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python arch-guard/main.py --target demo-microservices --output-md arch-guard/architecture-report.md --output-html arch-guard/architecture-report.html
+          echo "EXIT_CODE=$?" >> $GITHUB_ENV
+
+      - name: "Publish Architectural Summary to GitHub Actions"
+        if: always()
+        run: |
+          if [ -f "arch-guard/architecture-report.md" ]; then
+            cat arch-guard/architecture-report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: "Upload Interactive HTML Architecture Report"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-html-report
+          path: arch-guard/architecture-report.html
+
+      - name: "Enforce Quality Gate"
+        run: |
+          if [ "${{ env.EXIT_CODE }}" != "0" ]; then
+            echo "❌ BUILD FAILED: Critical Bounded Context violations detected by AI Sentinel!"
+            exit 1
+          else
+            echo "✅ BUILD PASSED: Architecture adheres to Domain-Driven Design boundaries."
+          fi

@@ -1,0 +1,184 @@
+{
+  "$schema": "https://raw.githubusercontent.com/antigravity/arch-guard/v1/schema.json",
+  "project_name": "E-Commerce System (DDD Architecture)",
+  "version": "1.0.0",
+  "contexts": {
+    "order-service": {
+      "name": "Order Context",
+      "package_prefix": "com.shop.order",
+      "responsibility": "Quản lý vòng đời đơn hàng (Order Aggregate, OrderItem, trạng thái thanh toán/kho)",
+      "allowed_inbound": ["api-gateway", "message-broker"],
+      "allowed_outbound_calls": [
+        {
+          "target_context": "inventory-service",
+          "allowed_mechanisms": ["REST_CLIENT_DTO", "AMQP_EVENT"],
+          "description": "Kiểm tra tồn kho qua HTTP DTO hoặc publish OrderCreatedEvent qua RabbitMQ"
+        },
+        {
+          "target_context": "user-service",
+          "allowed_mechanisms": ["REST_CLIENT_DTO"],
+          "description": "Lấy thông tin khách hàng qua HTTP DTO (không chia sẻ entity)"
+        },
+        {
+          "target_context": "message-broker",
+          "allowed_mechanisms": ["AMQP_EVENT"],
+          "description": "Phát tán OrderCreatedEvent, PaymentFailedEvent, v.v."
+        }
+      ],
+      "forbidden_dependencies": [
+        {
+          "target_package": "com.shop.payment",
+          "severity": "CRITICAL",
+          "reason": "Order Context không được phụ thuộc trực tiếp vào Payment Context (phải qua Event-driven Saga hoặc ACL)."
+        },
+        {
+          "target_package": "com.shop.inventory.model",
+          "severity": "CRITICAL",
+          "reason": "Order Context không được import trực tiếp Entity nội bộ của Inventory (vi phạm Database-per-Service và Bounded Context)."
+        },
+        {
+          "target_package": "com.shop.user.model",
+          "severity": "CRITICAL",
+          "reason": "Order Context không được import CustomerEntity; chỉ lưu trữ CustomerId dạng UUID."
+        },
+        {
+          "target_package": "com.shop.inventory.repository",
+          "severity": "CRITICAL",
+          "reason": "Cấm truy cập trực tiếp Repository/Database của context khác."
+        },
+        {
+          "target_package": "com.shop.payment.repository",
+          "severity": "CRITICAL",
+          "reason": "Cấm truy cập trực tiếp Repository/Database của Payment."
+        }
+      ]
+    },
+    "inventory-service": {
+      "name": "Inventory Context",
+      "package_prefix": "com.shop.inventory",
+      "responsibility": "Quản lý hàng tồn kho, giữ hàng (StockReservation) và xuất nhập kho",
+      "allowed_inbound": ["api-gateway", "order-service", "message-broker"],
+      "allowed_outbound_calls": [
+        {
+          "target_context": "message-broker",
+          "allowed_mechanisms": ["AMQP_EVENT"],
+          "description": "Phát tán StockReservedEvent hoặc StockRejectedEvent"
+        }
+      ],
+      "forbidden_dependencies": [
+        {
+          "target_package": "com.shop.order.model",
+          "severity": "CRITICAL",
+          "reason": "Inventory Context không được import OrderEntity của Order Service."
+        },
+        {
+          "target_package": "com.shop.payment",
+          "severity": "HIGH",
+          "reason": "Inventory không giao tiếp trực tiếp với Payment; điều phối qua choreography events."
+        }
+      ]
+    },
+    "payment-service": {
+      "name": "Payment Context",
+      "package_prefix": "com.shop.payment",
+      "responsibility": "Xử lý thanh toán, lưu lịch sử giao dịch và tích hợp cổng thanh toán ngoài",
+      "allowed_inbound": ["api-gateway", "message-broker"],
+      "allowed_outbound_calls": [
+        {
+          "target_context": "message-broker",
+          "allowed_mechanisms": ["AMQP_EVENT"],
+          "description": "Phát tán PaymentSucceededEvent hoặc PaymentFailedEvent"
+        },
+        {
+          "target_context": "external-payment-gateway",
+          "allowed_mechanisms": ["HTTP_CLIENT"],
+          "description": "Gọi cổng thanh toán bên thứ ba (WireMock / Stripe / VNPay)"
+        }
+      ],
+      "forbidden_dependencies": [
+        {
+          "target_package": "com.shop.order.model",
+          "severity": "CRITICAL",
+          "reason": "Payment Context chỉ nhận OrderId qua Event, không được import model của Order."
+        },
+        {
+          "target_package": "com.shop.inventory",
+          "severity": "HIGH",
+          "reason": "Payment không được import bất kỳ class nào của Inventory."
+        }
+      ]
+    },
+    "user-service": {
+      "name": "User Context",
+      "package_prefix": "com.shop.user",
+      "responsibility": "Quản lý thông tin tài khoản người dùng, địa chỉ giao hàng",
+      "allowed_inbound": ["api-gateway", "order-service"],
+      "allowed_outbound_calls": [],
+      "forbidden_dependencies": [
+        {
+          "target_package": "com.shop.order",
+          "severity": "HIGH",
+          "reason": "User Service là core identity context, không được phụ thuộc ngược vào Order."
+        }
+      ]
+    },
+    "notification-service": {
+      "name": "Notification Context",
+      "package_prefix": "com.shop.notification",
+      "responsibility": "Gửi email, SMS thông báo dựa trên sự kiện nhận từ Message Broker",
+      "allowed_inbound": ["message-broker"],
+      "allowed_outbound_calls": [
+        {
+          "target_context": "external-smtp-mailhog",
+          "allowed_mechanisms": ["SMTP"],
+          "description": "Gửi mail qua MailHog"
+        }
+      ],
+      "forbidden_dependencies": [
+        {
+          "target_package": "com.shop.order.repository",
+          "severity": "CRITICAL",
+          "reason": "Notification không được truy cập Database của Order; chỉ nhận payload từ Event."
+        }
+      ]
+    },
+    "api-gateway": {
+      "name": "API Gateway",
+      "package_prefix": "com.shop.gateway",
+      "responsibility": "Routing request từ client vào các microservices bên trong",
+      "allowed_inbound": ["external-client"],
+      "allowed_outbound_calls": [
+        {
+          "target_context": "all-services",
+          "allowed_mechanisms": ["HTTP_REVERSE_PROXY"],
+          "description": "Route HTTP requests"
+        }
+      ],
+      "forbidden_dependencies": [
+        {
+          "target_package": "com.shop.*.model",
+          "severity": "CRITICAL",
+          "reason": "API Gateway là routing infrastructure, cấm import business domain entities."
+        }
+      ]
+    }
+  },
+  "monolith_layers": {
+    "controller": {
+      "package": "com.project.ecommerce.controller",
+      "allowed_dependencies": ["service", "model.dto"]
+    },
+    "service": {
+      "package": "com.project.ecommerce.service",
+      "allowed_dependencies": ["repository", "model.entity", "model.dto", "config"]
+    },
+    "repository": {
+      "package": "com.project.ecommerce.repository",
+      "allowed_dependencies": ["model.entity"]
+    },
+    "model.entity": {
+      "package": "com.project.ecommerce.model.entity",
+      "allowed_dependencies": []
+    }
+  }
+}
